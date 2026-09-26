@@ -54,12 +54,10 @@ async def on_message(message):
         await message.channel.send("hello")
         return
 
-    parts = message.content.split(maxsplit=1)
-    if not parts or parts[0] != "$question":
+    if message.guild is None:
         return
-    question = parts[1].strip() if len(parts) > 1 else ""
+    question = message.content.strip()
     if not question:
-        await message.channel.send("Arrr! Ask me something: `$question Why is the sea blue?`")
         return
 
     answer = await answer_question(question)

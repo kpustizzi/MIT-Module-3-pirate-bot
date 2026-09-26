@@ -23,29 +23,45 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
             return_value=SimpleNamespace(output_text="Arrr! Here be an answer.")
         )
 
-    def message(self, text, is_bot=False):
+    def message(self, text, is_bot=False, in_server=True):
         return SimpleNamespace(
             content=text, author=SimpleNamespace(bot=is_bot),
             channel=SimpleNamespace(send=AsyncMock()),
+            guild=SimpleNamespace() if in_server else None,
         )
 
     async def test_hello_and_ignored_messages(self):
         hello = self.message("$hello")
         await bot.on_message(hello)
         hello.channel.send.assert_awaited_once_with("hello")
-        for text, is_bot in [("$hello", True), ("$question hi", True),
-                             ("$questionable hi", False), ("", False)]:
+        for text, is_bot in [("$hello", True), ("Ahoy!", True), ("", False)]:
             msg = self.message(text, is_bot)
             await bot.on_message(msg)
             msg.channel.send.assert_not_awaited()
         self.ai.responses.create.assert_not_awaited()
 
-    async def test_empty_question(self):
-        for text in ["$question", "$question   \n"]:
+    async def test_empty_messages(self):
+        for text in ["", "   \n\t"]:
             msg = self.message(text)
             await bot.on_message(msg)
-            self.assertIn("$question", msg.channel.send.call_args.args[0])
+            msg.channel.send.assert_not_awaited()
         self.ai.responses.create.assert_not_awaited()
+
+    async def test_direct_messages(self):
+        msg = self.message("Why is the sea blue?", in_server=False)
+        await bot.on_message(msg)
+        msg.channel.send.assert_not_awaited()
+        hello = self.message("$hello", in_server=False)
+        await bot.on_message(hello)
+        hello.channel.send.assert_awaited_once_with("hello")
+        self.ai.responses.create.assert_not_awaited()
+
+    async def test_ordinary_text_and_old_prefix(self):
+        for text in ["Ahoy!", "$question Why?", "$question", "$hello there"]:
+            msg = self.message(text)
+            await bot.on_message(msg)
+            self.assertEqual(self.ai.responses.create.call_args.kwargs["input"], text)
+            msg.channel.send.assert_awaited_once()
 
     async def test_missing_key(self):
         for key in ["", "  ", "your_openai_api_key_here"]:
@@ -54,7 +70,7 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         self.ai.responses.create.assert_not_awaited()
 
     async def test_question_and_mentions(self):
-        msg = self.message("$question  Why is the sea blue?\n")
+        msg = self.message("  Why is the sea blue?\n")
         await bot.on_message(msg)
         self.assertEqual(self.ai.responses.create.call_args.kwargs["input"],
                          "Why is the sea blue?")
@@ -94,7 +110,7 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
             return SimpleNamespace(output_text="Arrr!")
 
         self.ai.responses.create.side_effect = pending
-        task = asyncio.create_task(bot.on_message(self.message("$question Why?")))
+        task = asyncio.create_task(bot.on_message(self.message("Why?")))
         try:
             await asyncio.wait_for(started.wait(), 1)
             hello = self.message("$hello")

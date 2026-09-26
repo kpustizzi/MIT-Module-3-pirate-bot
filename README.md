@@ -1,7 +1,8 @@
 # Minimal Discord bot
 
-Replies `hello` when a person sends exactly `$hello`. Use `$question <text>` for a
-brief OpenAI answer in a playful pirate voice. Requires Python 3.10+.
+Replies `hello` when a person sends exactly `$hello`. Every other nonempty message
+from a person in a server channel gets a brief OpenAI answer in a playful pirate
+voice, with no command prefix required. Requires Python 3.10+.
 
 ## Setup (Windows PowerShell)
 
@@ -42,13 +43,20 @@ brief OpenAI answer in a playful pirate voice. Requires Python 3.10+.
 
 ## Questions
 
-Send `$question Why is the sea blue?` in Discord. Only the question text is sent
-to OpenAI, and the answer is posted to the same channel; no conversation history is sent.
+Send a message such as `Why is the sea blue?` in a server channel the bot can read.
+Pirate sends each nonempty human message's text to OpenAI and posts the answer to
+the same channel; no conversation history or attachments are sent. `$question` is
+no longer a command and is treated as ordinary text. Each eligible message makes
+an API request, so activity in those channels affects API usage.
 The bot uses `gpt-4.1-mini` with the official SDK's asynchronous Responses API so
 other messages can be handled while the request is pending. See the
 [OpenAI SDK documentation](https://developers.openai.com/api/docs/libraries).
 
-- Empty questions get a usage hint without calling OpenAI.
+- `$hello` is handled first and replies `hello` without calling OpenAI.
+- Messages from bots (including Pirate itself) and empty or whitespace-only
+  messages are ignored. Attachment-only messages do not trigger an answer.
+- General answers are limited to server channels; direct messages are ignored
+  except for the existing `$hello` response.
 - Missing or placeholder OpenAI keys get a setup message; `$hello` still works.
 - API failures (including invalid keys, rate limits, and a 30-second request timeout)
   get a friendly error without exposing API details or credentials.
